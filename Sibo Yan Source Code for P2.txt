@@ -1,0 +1,113 @@
+import random
+from math import sqrt, log
+import timeit
+import matplotlib.pyplot as plt
+
+# Calculate the Euclidean distance between two points.
+def compute_distance(p1, p2):
+    return sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+
+# Find the closest pair using a basic iterative approach for a small set of points.
+def basic_closest_pair(points_subset):
+    min_dist = float('inf')
+    pair = None
+    for i in range(len(points_subset)):
+        for j in range(i + 1, len(points_subset)):
+            if compute_distance(points_subset[i], points_subset[j]) < min_dist:
+                min_dist = compute_distance(points_subset[i], points_subset[j])
+                pair = (points_subset[i], points_subset[j])
+    return min_dist, pair
+
+# Check the points near the dividing line for potential closest pairs.
+def examine_strip(points_strip, distance):
+    min_dist = distance
+    pair = None
+    points_strip.sort(key=lambda point: point[1]) # Sort by y-coordinate.
+    for i in range(len(points_strip)):
+        j = i + 1
+        while j < len(points_strip) and (points_strip[j][1] - points_strip[i][1]) < min_dist:
+            if compute_distance(points_strip[i], points_strip[j]) < min_dist:
+                min_dist = compute_distance(points_strip[i], points_strip[j])
+                pair = (points_strip[i], points_strip[j])
+            j += 1
+    return min_dist, pair
+
+# Main recursive function for divide-and-conquer closest pair approach.
+def divide_and_conquer(points_sorted):
+    if len(points_sorted) <= 3:
+        return basic_closest_pair(points_sorted)
+
+    middle = len(points_sorted) // 2
+    mid_point = points_sorted[middle]
+
+    distance_left, pair_left = divide_and_conquer(points_sorted[:middle])
+    distance_right, pair_right = divide_and_conquer(points_sorted[middle:])
+
+    d = min(distance_left, distance_right)
+    if d == distance_left:
+        min_pair = pair_left
+    else:
+        min_pair = pair_right
+
+    # Create a strip of points that lie within 'd' distance from the median line on the x-axis.
+    # This approach ensures that we consider only potential pairs of points that can be closer than 'd'.
+    # By focusing on this strip, we avoid unnecessary comparisons, thereby not increasing the overall time complexity.
+    strip = [point for point in points_sorted if abs(point[0] - mid_point[0]) < d]
+
+    # For the points within this strip, find the closest pair.
+    # As per the problem statement's conditions, each point in the strip is only compared with a maximum
+    # of 6 points following it in the sorted y-order, ensuring linear time complexity for this step.
+    strip_distance, strip_pair = examine_strip(strip, d)
+
+    if strip_distance < d:
+        return strip_distance, strip_pair
+    else:
+        return d, min_pair
+
+# Generate a list of random 2D points.
+def generate_random_points(count):
+    return [(random.randint(0, 10000), random.randint(0, 10000)) for _ in range(count)]
+
+
+# Main program execution starts here.
+
+points_count = [10, 100, 1000, 10000, 100000]
+Experimental_Time = []
+Theoretical_Time = []
+
+# Iterate through different input sizes, record execution times.
+for count in points_count:
+    random_points = generate_random_points(count)
+    random_points.sort(key=lambda point: point[0])
+
+    start = timeit.default_timer()
+    _, _ = divide_and_conquer(random_points)
+    end = timeit.default_timer()
+    Experimental_Time.append((end - start) * 1e6)  # Convert to microseconds
+
+# Normalize the times based on the smallest input size.
+Scaling_Constant = Experimental_Time[0] / (points_count[0] * log(points_count[0]))
+
+for count in points_count:
+    Theoretical_Time.append(count * log(count) * Scaling_Constant)
+
+# Print the results and plot the graph.
+print("Scaling Constant (for normalization):", Scaling_Constant)
+print("\nSize \t Experimental Time (µs) \t Theoretical Time (µs)")
+print("-" * 70)
+for s, e, t in zip(points_count, Experimental_Time, Theoretical_Time):
+    print(f"{s} \t {e:.2f} \t\t\t {t:.2f}")
+
+# Plotting.
+plt.figure(figsize=(10, 6))
+plt.plot(points_count, Experimental_Time, 'o-', label="Experimental Time (µs)")
+plt.plot(points_count, Theoretical_Time, 's-', label="Theoretical Time (µs)")
+plt.xlabel('Number of Points')
+plt.ylabel('Time (µs)')
+plt.title('Experimental vs. Theoretical Time for Closest Pair of Points')
+plt.legend()
+plt.grid(True)
+# Set the y-axis of the plot to a logarithmic scale for better visualization and clarity,
+# especially for datasets with large differences in magnitude.
+plt.yscale('log')
+plt.show()
