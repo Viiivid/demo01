@@ -1,0 +1,83 @@
+import numpy as np
+from queue import PriorityQueue
+
+class Puzzle:
+    def __init__(self, state, moves=0, previous=None):
+        self.state = np.array(state)
+        self.moves = moves
+        self.previous = previous
+        self.size = self.state.shape[0]
+        self.manhattan_distance = self.cal_manhattan_distance()
+
+    def cal_manhattan_distance(self):
+        distance = 0
+        for i in range(self.size):
+            for j in range(self.size):
+                if self.state[i, j] != 0:
+                    x, y = divmod(self.state[i, j] - 1, self.size)
+                    distance += abs(x - i) + abs(y - j)
+        return distance
+
+    def get_neighbors(self):
+        neighbors = []
+        x, y = np.where(self.state == 0)
+        x, y = int(x[0]), int(y[0])
+        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+
+        for dx, dy in directions:
+            new_x, new_y = x + dx, y + dy
+            if 0 <= new_x < self.size and 0 <= new_y < self.size:
+                new_state = np.copy(self.state)
+                new_state[x, y], new_state[new_x, new_y] = new_state[new_x, new_y], new_state[x, y]
+                neighbors.append(Puzzle(new_state, self.moves + 1, self))
+        return neighbors
+
+    def is_goal(self):
+        return np.array_equal(self.state, np.arange(1, self.size**2+1).reshape(self.size, self.size) % (self.size**2))
+
+    def __lt__(self, other):
+        return self.manhattan_distance + self.moves < other.manhattan_distance + other.moves
+
+def read_puzzle_from_file(filename):
+    with open(filename, 'r') as file:
+        puzzle = [list(map(int, line.split())) for line in file]
+    return np.array(puzzle)
+
+def solve_puzzle(initial_state):
+    initial_puzzle = Puzzle(initial_state)
+    frontier = PriorityQueue()
+    frontier.put((initial_puzzle.manhattan_distance + initial_puzzle.moves, initial_puzzle))
+    explored = set()
+
+    while not frontier.empty():
+        current_puzzle = frontier.get()[1]
+
+        if current_puzzle.is_goal():
+            moves = []
+            while current_puzzle.previous is not None:
+                moves.append(current_puzzle.state)
+                current_puzzle = current_puzzle.previous
+            moves.append(current_puzzle.state)
+            return moves[::-1]
+
+        explored.add(tuple(current_puzzle.state.flatten()))
+        for neighbor in current_puzzle.get_neighbors():
+            if tuple(neighbor.state.flatten()) not in explored:
+                frontier.put((neighbor.manhattan_distance + neighbor.moves, neighbor))
+
+    return None
+
+def print_solution(solution):
+    if solution:
+        steps = len(solution) - 1
+        for step in solution:
+            print('\n'.join(' '.join(str(cell).rjust(2, ' ') for cell in row) for row in step))
+            print("-" * (step.shape[1] * 3))
+        print(f"Total steps: {steps}")
+    else:
+        print("No solution found.")
+
+filename = 'n-puzzle.txt'
+initial_state = read_puzzle_from_file(filename)
+solution = solve_puzzle(initial_state)
+print_solution(solution)
